@@ -2,7 +2,8 @@ import React, { useState, useCallback } from 'react';
 import { analyzeData, MEDIA_DISPLAY } from './utils/parseData';
 import './App.css';
 
-const TABS = Object.keys(MEDIA_DISPLAY);
+// 优先展示的媒体顺序（其余媒体自动追加在后面）
+const PRIORITY_TABS = ['overall', 'organic', 'Facebook Ads', 'googleadwords_int', 'Apple Search Ads', 'tiktokglobal_int'];
 
 function formatPct(val) {
   if (val === null || val === undefined) return '—';
@@ -20,37 +21,57 @@ function formatUsers(val) {
   return val.toLocaleString();
 }
 
-function UploadBox({ label, file, onChange, color }) {
+function UploadBox({ yesterdayFile, sevenDayFile, onFilesChange }) {
   const [dragging, setDragging] = useState(false);
+
+  const handleFiles = useCallback((files) => {
+    const arr = Array.from(files);
+    if (arr.length >= 2) {
+      onFilesChange(arr[0], arr[1]);
+    } else if (arr.length === 1) {
+      onFilesChange(arr[0], null);
+    }
+  }, [onFilesChange]);
 
   const handleDrop = useCallback(e => {
     e.preventDefault();
     setDragging(false);
-    const f = e.dataTransfer.files[0];
-    if (f) onChange(f);
-  }, [onChange]);
+    handleFiles(e.dataTransfer.files);
+  }, [handleFiles]);
+
+  const bothReady = yesterdayFile && sevenDayFile;
 
   return (
     <div
-      className={`upload-box ${dragging ? 'dragging' : ''} ${file ? 'has-file' : ''}`}
-      style={{ '--accent': color }}
+      className={`upload-box single ${dragging ? 'dragging' : ''} ${bothReady ? 'has-file' : ''}`}
       onDragOver={e => { e.preventDefault(); setDragging(true); }}
       onDragLeave={() => setDragging(false)}
       onDrop={handleDrop}
-      onClick={() => document.getElementById(`input-${label}`).click()}
+      onClick={() => document.getElementById('input-files').click()}
     >
       <input
-        id={`input-${label}`}
+        id="input-files"
         type="file"
         accept=".csv"
+        multiple
         style={{ display: 'none' }}
-        onChange={e => e.target.files[0] && onChange(e.target.files[0])}
+        onChange={e => handleFiles(e.target.files)}
       />
-      <div className="upload-icon">{file ? '✓' : '↑'}</div>
-      <div className="upload-label">{label}</div>
-      <div className="upload-filename">
-        {file ? file.name : '点击或拖拽上传 CSV 文件'}
+      <div className="upload-icon">{bothReady ? '✓' : '↑'}</div>
+      <div className="upload-label">
+        {bothReady ? '已选择 2 个文件' : '上传昨日 + 过去7日的 CSV 文件'}
       </div>
+      <div className="upload-files-list">
+        {yesterdayFile
+          ? <div className="file-tag file-tag-blue">📄 昨日：{yesterdayFile.name}</div>
+          : <div className="file-tag file-tag-empty">昨日数据（第1个文件）</div>
+        }
+        {sevenDayFile
+          ? <div className="file-tag file-tag-purple">📄 7日：{sevenDayFile.name}</div>
+          : <div className="file-tag file-tag-empty">7日数据（第2个文件）</div>
+        }
+      </div>
+      <div className="upload-hint-inline">同时选中两个 CSV 文件即可</div>
     </div>
   );
 }
@@ -140,6 +161,11 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  const handleFilesChange = useCallback((f1, f2) => {
+    setYesterdayFile(f1);
+    setSevenDayFile(f2);
+  }, []);
+
   const readFile = (file) => new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = e => resolve(e.target.result);
@@ -173,8 +199,17 @@ export default function App() {
     setError(null);
   };
 
+  const buildTabs = (data) => {
+    const allKeys = Object.keys(data);
+    const priority = PRIORITY_TABS.filter(k => allKeys.includes(k));
+    const rest = allKeys.filter(k => !PRIORITY_TABS.includes(k)).sort();
+    return [...priority, ...rest];
+  };
+
+  const tabs = result ? buildTabs(result) : [];
   const tabData = result?.[activeTab];
   const anomalyCountForTab = tabData?.rows?.filter(r => r.isAnomaly).length ?? 0;
+  const getTabLabel = (key) => MEDIA_DISPLAY[key] || key;
 
   return (
     <div className="app">
@@ -193,20 +228,11 @@ export default function App() {
 
       {!result ? (
         <div className="upload-section">
-          <div className="upload-grid">
-            <UploadBox
-              label="昨日数据"
-              file={yesterdayFile}
-              onChange={setYesterdayFile}
-              color="#3b82f6"
-            />
-            <UploadBox
-              label="过去7日数据"
-              file={sevenDayFile}
-              onChange={setSevenDayFile}
-              color="#8b5cf6"
-            />
-          </div>
+          <UploadBox
+            yesterdayFile={yesterdayFile}
+            sevenDayFile={sevenDayFile}
+            onFilesChange={handleFilesChange}
+          />
 
           {error && <div className="error-msg">{error}</div>}
 
@@ -222,9 +248,9 @@ export default function App() {
             <p>📌 使用说明</p>
             <ul>
               <li>从 AppsFlyer 事件面板分别导出「昨日」和「过去7日」的汇总绩效报告（CSV格式）</li>
+              <li>同时选中这两个文件上传，<strong>第1个文件为昨日数据，第2个文件为7日数据</strong></li>
               <li>转化率 = 各事件独立用户数 ÷ vgsdk_af_app_active 独立用户数</li>
               <li>昨日转化率比7日转化率下降超过 <strong>3%</strong> 则标记为异常</li>
-              <li>支持媒体：Organic、Facebook、ASA、TikTok、Google</li>
             </ul>
           </div>
         </div>
@@ -233,7 +259,7 @@ export default function App() {
           <SummaryBar data={result} />
 
           <div className="tabs">
-            {TABS.map(tab => {
+            {tabs.map(tab => {
               const count = result[tab]?.rows?.filter(r => r.isAnomaly).length ?? 0;
               const hasData = result[tab]?.rows?.length > 0;
               return (
@@ -242,7 +268,7 @@ export default function App() {
                   className={`tab ${activeTab === tab ? 'active' : ''} ${count > 0 ? 'has-anomaly' : ''}`}
                   onClick={() => setActiveTab(tab)}
                 >
-                  {MEDIA_DISPLAY[tab]}
+                  {getTabLabel(tab)}
                   {hasData && count > 0 && (
                     <span className="tab-badge">{count}</span>
                   )}
@@ -254,7 +280,7 @@ export default function App() {
           <div className="tab-content">
             <div className="tab-header">
               <div className="tab-title">
-                {MEDIA_DISPLAY[activeTab]}
+                {getTabLabel(activeTab)}
                 <span className="tab-active-info">
                   昨日 Active: <strong>{formatUsers(tabData?.yActive)}</strong>
                   &nbsp;｜ 7日 Active: <strong>{formatUsers(tabData?.sActive)}</strong>

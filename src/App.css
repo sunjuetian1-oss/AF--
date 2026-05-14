@@ -442,3 +442,72 @@ h1 {
   .summary-bar { grid-template-columns: repeat(2, 1fr); }
   .tab-header { flex-direction: column; align-items: flex-start; }
 }
+
+/* ── 固定表头 ── */
+.table-wrap {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 600px;
+}
+
+.event-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.event-table thead tr {
+  background: var(--surface2);
+}
+
+.event-table th {
+  box-shadow: 0 1px 0 var(--border);
+}
+
+/* ── 单上传框 ── */
+.upload-box.single {
+  max-width: 500px;
+  width: 100%;
+  padding: 36px 28px 24px;
+}
+
+.upload-files-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+  width: 100%;
+}
+
+.file-tag {
+  padding: 7px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: var(--mono);
+  text-align: left;
+  word-break: break-all;
+}
+
+.file-tag-blue {
+  background: color-mix(in srgb, #3b82f6 12%, var(--surface2));
+  color: #93c5fd;
+  border: 1px solid color-mix(in srgb, #3b82f6 30%, transparent);
+}
+
+.file-tag-purple {
+  background: color-mix(in srgb, #8b5cf6 12%, var(--surface2));
+  color: #c4b5fd;
+  border: 1px solid color-mix(in srgb, #8b5cf6 30%, transparent);
+}
+
+.file-tag-empty {
+  background: var(--surface2);
+  color: var(--text-muted);
+  border: 1px dashed var(--border);
+}
+
+.upload-hint-inline {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
